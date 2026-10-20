@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en-SG">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site statistics | SG QuickFix</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0C2E72">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+<link rel="stylesheet" href="/assets/stats.css">
+<script src="/assets/track.js" defer></script>
+<script type="module" src="/assets/stats.js"></script>
+</head>
+<body class="stats-body">
+
+<div class="band band-slim">
+  <header class="wrap masthead">
+    <a class="wordmark" href="/" aria-label="SG QuickFix home">
+      <span class="wordmark-sg">SG</span>
+      <span>QuickFix</span>
+      <span class="wordmark-sub">Stats</span>
+    </a>
+    <nav class="mast-nav" aria-label="Site">
+      <a href="/">Back to the site</a>
+    </nav>
+  </header>
+
+  <section class="wrap stats-hero">
+    <h1>Site statistics</h1>
+    <p class="stats-sub" id="stats-sub">Sign in to see visits, estimates and bookings.</p>
+    <div class="stats-controls" id="stats-controls" hidden>
+      <div class="pills pills-inverse" role="radiogroup" aria-label="Date range">
+        <label><input type="radio" name="range" value="1"><span>Today</span></label>
+        <label><input type="radio" name="range" value="7" checked><span>7 days</span></label>
+        <label><input type="radio" name="range" value="30"><span>30 days</span></label>
+        <label><input type="radio" name="range" value="90"><span>90 days</span></label>
+      </div>
+      <div class="stats-actions">
+        <button type="button" class="text-btn text-btn-inverse" id="refresh">Refresh</button>
+        <button type="button" class="text-btn text-btn-inverse" id="sign-out">Sign out</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<main class="wrap" id="main">
+
+  <section class="card login" id="login" aria-labelledby="login-title">
+    <h2 id="login-title">Sign in</h2>
+    <form id="login-form" novalidate>
+      <label class="field-label" for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" aria-describedby="password-error">
+      <p class="field-error" id="password-error" role="alert" hidden></p>
+      <button type="submit" class="btn btn-submit" id="login-btn">Show statistics</button>
+    </form>
+  </section>
+
+  <div id="dash" hidden aria-live="polite" aria-busy="false">
+    <section class="card overview" aria-labelledby="overview-title">
+      <h2 id="overview-title" class="visually-hidden">Overview</h2>
+      <dl class="kpis" id="kpis"></dl>
+      <p class="stats-empty" id="empty" hidden>No visits recorded in this period yet. New visits show up here within a minute.</p>
+
+      <h3 class="section-title">From visit to booking</h3>
+      <ol class="funnel" id="funnel"></ol>
+    </section>
+
+    <section class="stats-section" aria-labelledby="chart-title">
+      <h3 class="section-title" id="chart-title">Visitors and estimates by day</h3>
+      <div class="chart" id="chart"></div>
+      <p class="chart-key"><span class="key key-a"></span>Visitors <span class="key key-b"></span>Visitors who got an estimate</p>
+    </section>
+
+    <div class="stats-grid" id="tables"></div>
+
+    <section class="stats-section" aria-labelledby="daily-title">
+      <div class="section-head">
+        <h3 class="section-title" id="daily-title">Day by day</h3>
+        <button type="button" class="btn-sm ghost" id="csv">Download CSV</button>
+      </div>
+      <div class="table-scroll">
+        <table class="tbl tbl-daily" id="daily"></table>
+      </div>
+    </section>
+
+    <section class="stats-section stats-notes" aria-labelledby="notes-title">
+      <h3 class="section-title" id="notes-title">How these numbers work</h3>
+      <p>A visitor is counted once a day using an anonymous ID that changes every day, so someone who visits on three days counts three times. Totals for longer ranges add up the daily counts. Search engine bots are left out, and no cookies are used.</p>
+      <p>Dates use Singapore time. Visits from deploy previews are kept separate from the live site.</p>
+      <label class="check"><input type="checkbox" id="exclude"><span>Don't count visits from this browser, so your own testing stays out of the numbers.</span></label>
+    </section>
+  </div>
+</main>
+
+<footer class="wrap foot">
+  <p>&copy; 2026 SG QuickFix</p>
+</footer>
+</body>
+</html>

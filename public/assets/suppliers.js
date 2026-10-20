@@ -201,7 +201,10 @@
     fetch('/', { method: 'POST', body: new FormData(form) })
       .then(function (res) {
         if (!res.ok) throw new Error('Status ' + res.status);
-        if (window.sgTrack) window.sgTrack('application');
+        if (window.qfTrack) {
+          var listing = form.querySelector('input[name="listing_type"]:checked');
+          window.qfTrack('supplier_submit', { listing: listing ? listing.value.toLowerCase() : 'standard' });
+        }
         $('done-email').textContent = $('email').value.trim();
         form.hidden = true;
         $('apply-done').hidden = false;

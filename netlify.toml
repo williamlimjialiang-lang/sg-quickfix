@@ -20,6 +20,12 @@
     Strict-Transport-Security = "max-age=31536000"
 
 [[headers]]
+  for = "/stats/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store"
+
+[[headers]]
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=600, must-revalidate"

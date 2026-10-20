@@ -3,7 +3,6 @@ import {
   jobById, jobsFor, defaultJobFor, matchJob, guessQty, clampQty, unitNoun,
   estimate, formatRange, greetingFor
 } from './rates.js';
-import { track } from './track.js';
 
 /* ---------- Helpers ---------- */
 
@@ -38,6 +37,11 @@ function formatSize(bytes) {
 
 function slug(text) {
   return String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+/* Anonymous usage counts for /stats. Never blocks the page. */
+function track(event, props) {
+  if (window.qfTrack) window.qfTrack(event, props);
 }
 
 /* ---------- State ---------- */
@@ -174,13 +178,14 @@ form.addEventListener('submit', function (e) {
     category.focus();
     return;
   }
-  track('estimate', category.value);
-  startEstimate(category.value, description.value.trim(), null);
+  startEstimate(category.value, description.value.trim(), null, 'form');
 });
 
 /* ---------- Starting an estimate ---------- */
 
-function startEstimate(cat, desc, forcedJobId) {
+var adjusted = new Set();
+
+function startEstimate(cat, desc, forcedJobId, via) {
   var match = matchJob(cat, desc);
   var job = forcedJobId ? jobById(forcedJobId) : match.job;
   var contextChanged = cat !== state.category || desc !== state.description || job.id !== state.jobId;
@@ -199,6 +204,15 @@ function startEstimate(cat, desc, forcedJobId) {
   buildJobSelect();
   renderAll();
   showView('results', { push: true });
+  adjusted = new Set();
+  track('estimate', { cat: cat, job: job.id, via: via || 'form' });
+}
+
+/* Counts each kind of adjustment once per estimate. */
+function trackAdjust(what) {
+  if (adjusted.has(what)) return;
+  adjusted.add(what);
+  track('adjust', { what: what });
 }
 
 /* ---------- Results rendering ---------- */
@@ -310,7 +324,12 @@ $('jump-chat').addEventListener('click', function () {
   chatInput.focus({ preventScroll: true });
 });
 
+$('share-wa').addEventListener('click', function () {
+  track('share', { via: 'whatsapp', cat: state.category });
+});
+
 $('share-copy').addEventListener('click', function () {
+  track('share', { via: 'copy', cat: state.category });
   var btn = this;
   var text = jobSummary();
   var done = function () {
@@ -356,24 +375,27 @@ $('job-select').addEventListener('change', function () {
   if (!state.chat.started) resetChat();
   else addNote('Job changed to \u201c' + job.name.toLowerCase() + '\u201d.');
   onContextChange();
+  trackAdjust('job');
 });
 
 $('qty-minus').addEventListener('click', function () {
   state.qty = clampQty(currentJob(), state.qty - 1);
   onContextChange();
+  trackAdjust('qty');
 });
 
 $('qty-plus').addEventListener('click', function () {
   state.qty = clampQty(currentJob(), state.qty + 1);
   onContextChange();
+  trackAdjust('qty');
 });
 
 document.querySelectorAll('input[name="home"]').forEach(function (r) {
-  r.addEventListener('change', function () { state.home = this.value; onContextChange(); });
+  r.addEventListener('change', function () { state.home = this.value; onContextChange(); trackAdjust('home'); });
 });
 
 document.querySelectorAll('input[name="timing"]').forEach(function (r) {
-  r.addEventListener('change', function () { state.timing = this.value; onContextChange(); });
+  r.addEventListener('change', function () { state.timing = this.value; onContextChange(); trackAdjust('timing'); });
 });
 
 $('cat-hint-btn').addEventListener('click', function () {
@@ -391,6 +413,8 @@ $('cat-hint-btn').addEventListener('click', function () {
   buildJobSelect();
   renderAll();
   $('est-title').focus();
+  adjusted = new Set();
+  track('estimate', { cat: cat, job: match.job.id, via: 'switch' });
 });
 
 document.querySelectorAll('[data-action="edit"]').forEach(function (b) {
@@ -406,30 +430,19 @@ document.querySelectorAll('[data-action="edit"]').forEach(function (b) {
 
 /* ---------- Booking ---------- */
 
-/* Count clicks on any booking link: a partner's id, or the site it opens. */
-['book-partners', 'book-links'].forEach(function (id) {
-  $(id).addEventListener('click', function (e) {
-    var link = e.target.closest('a[href]');
-    if (!link) return;
-    var row = link.closest('[data-partner]');
-    var where = row ? row.dataset.partner : link.hostname;
-    track('book', where + ':' + link.textContent.trim().slice(0, 40));
-  });
-});
-
 var PLATFORMS = {
   'Aircon': [
-    { mark: 'H', name: 'Helpling', desc: 'Book aircon servicing, chemical washes and overhauls online at listed prices.', href: 'https://www.helpling.com.sg/aircon-services', cta: 'Book on Helpling' },
-    { mark: 'U', name: 'Urban Company', desc: 'Fixed-price aircon servicing and repairs with a 30-day service guarantee.', href: 'https://www.urbancompany.com/singapore-ac-service-repair', cta: 'Book on Urban Company' }
+    { id: 'helpling', mark: 'H', name: 'Helpling', desc: 'Book aircon servicing, chemical washes and overhauls online at listed prices.', href: 'https://www.helpling.com.sg/aircon-services', cta: 'Book on Helpling' },
+    { id: 'urban-company', mark: 'U', name: 'Urban Company', desc: 'Fixed-price aircon servicing and repairs with a 30-day service guarantee.', href: 'https://www.urbancompany.com/singapore-ac-service-repair', cta: 'Book on Urban Company' }
   ],
   'General Handyman': [
-    { mark: 'U', name: 'Urban Company', desc: 'Book a handyman for mounting, assembly and curtain jobs at listed prices.', href: 'https://www.urbancompany.com/singapore-handyman', cta: 'Book on Urban Company' }
+    { id: 'urban-company', mark: 'U', name: 'Urban Company', desc: 'Book a handyman for mounting, assembly and curtain jobs at listed prices.', href: 'https://www.urbancompany.com/singapore-handyman', cta: 'Book on Urban Company' }
   ],
   'Carpentry': [
-    { mark: 'U', name: 'Urban Company', desc: 'Book a handyman for small hinge, door and fitting repairs at listed prices.', href: 'https://www.urbancompany.com/singapore-handyman', cta: 'Book on Urban Company' }
+    { id: 'urban-company', mark: 'U', name: 'Urban Company', desc: 'Book a handyman for small hinge, door and fitting repairs at listed prices.', href: 'https://www.urbancompany.com/singapore-handyman', cta: 'Book on Urban Company' }
   ],
   'Plumbing': [
-    { mark: 'A', name: 'Airtasker', desc: 'Post the job, set your budget and choose from plumbers who make offers.', href: 'https://airtasker.com/sg/services/plumbing/', cta: 'Post on Airtasker' }
+    { id: 'airtasker', mark: 'A', name: 'Airtasker', desc: 'Post the job, set your budget and choose from plumbers who make offers.', href: 'https://airtasker.com/sg/services/plumbing/', cta: 'Post on Airtasker' }
   ],
   'Electrical': []
 };
@@ -443,7 +456,7 @@ function tradePlural(trade) {
 function linkRow(item) {
   var actions = item.href
     ? el('div', { class: 'book-actions' }, [
-        el('a', { class: 'btn-sm ghost', href: item.href, target: '_blank', rel: 'noopener', text: item.cta })
+        el('a', { class: 'btn-sm ghost', href: item.href, target: '_blank', rel: 'noopener', text: item.cta, 'data-target': item.id })
       ])
     : null;
   return el('li', { class: 'book-row' + (item.href ? '' : ' is-tip') }, [
@@ -479,11 +492,13 @@ function partnerRow(p) {
     actions.appendChild(el('a', {
       class: 'btn-sm', target: '_blank', rel: 'noopener',
       href: 'https://wa.me/' + String(p.whatsapp).replace(/\D/g, '') + '?text=' + encodeURIComponent(summary),
-      text: 'WhatsApp'
+      text: 'WhatsApp',
+      'data-target': 'partner-whatsapp',
+      'data-partner': p.id || slug(p.name)
     }));
   }
-  if (p.phone) actions.appendChild(el('a', { class: 'btn-sm ghost', href: 'tel:' + String(p.phone).replace(/[^\d+]/g, ''), text: 'Call' }));
-  if (p.website) actions.appendChild(el('a', { class: 'btn-sm ghost', href: p.website, target: '_blank', rel: 'noopener sponsored', text: 'Website' }));
+  if (p.phone) actions.appendChild(el('a', { class: 'btn-sm ghost', href: 'tel:' + String(p.phone).replace(/[^\d+]/g, ''), text: 'Call', 'data-target': 'partner-call', 'data-partner': p.id || slug(p.name) }));
+  if (p.website) actions.appendChild(el('a', { class: 'btn-sm ghost', href: p.website, target: '_blank', rel: 'noopener sponsored', text: 'Website', 'data-target': 'partner-website', 'data-partner': p.id || slug(p.name) }));
 
   return el('li', { class: 'book-row is-partner', 'data-partner': p.id || slug(p.name) }, [
     mark,
@@ -515,14 +530,14 @@ function renderBooking() {
 
   var links = [];
   links.push({
-    mark: 'C', name: 'Carousell',
+    id: 'carousell', mark: 'C', name: 'Carousell',
     desc: 'Current listings for \u201c' + job.search + '\u201d from Singapore contractors. Compare prices, reviews and response times.',
     href: 'https://www.carousell.sg/' + slug(job.search) + '/q/',
     cta: 'See listings'
   });
   (PLATFORMS[cat] || []).forEach(function (p) { links.push(p); });
   links.push({
-    mark: 'G', name: 'Google Maps',
+    id: 'google-maps', mark: 'G', name: 'Google Maps',
     desc: 'Nearby ' + tradePlural(job.trade) + ' with recent reviews. Sort by rating and check what people paid.',
     href: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(job.trade + ' Singapore'),
     cta: 'Open Maps'
@@ -535,7 +550,7 @@ function renderBooking() {
   }
   if (cat === 'Electrical') {
     links.push({
-      mark: 'EMA', name: 'Check the electrician\u2019s licence',
+      id: 'ema', mark: 'EMA', name: 'Check the electrician\u2019s licence',
       desc: 'Electrical work in Singapore must be done by an EMA-licensed electrical worker. Look them up before work starts.',
       href: 'https://elise.ema.gov.sg/elise/LEWs.jsp',
       cta: 'Search EMA register'
@@ -543,7 +558,7 @@ function renderBooking() {
   }
   if (cat === 'Plumbing') {
     links.push({
-      mark: 'PUB', name: 'Check the plumber\u2019s licence',
+      id: 'pub', mark: 'PUB', name: 'Check the plumber\u2019s licence',
       desc: 'Regulated water and sanitary plumbing must be done by a PUB-licensed plumber. PUB lists where to find and verify them.',
       href: 'https://www.pub.gov.sg/Professionals/Requirements/Licensed-Plumbers/Plumbing-Works',
       cta: 'See PUB guidance'
@@ -554,6 +569,16 @@ function renderBooking() {
   linkList.innerHTML = '';
   links.forEach(function (l) { linkList.appendChild(linkRow(l)); });
 }
+
+['book-partners', 'book-links'].forEach(function (id) {
+  $(id).addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-target]');
+    if (!a) return;
+    var props = { target: a.getAttribute('data-target'), cat: state.category };
+    if (a.getAttribute('data-partner')) props.partner = a.getAttribute('data-partner');
+    track('book_click', props);
+  });
+});
 
 function normalisePartner(p) {
   if (!p || typeof p !== 'object' || !p.name || !Array.isArray(p.categories)) return null;
@@ -737,7 +762,8 @@ function sendMessage(text) {
     return;
   }
 
-  if (!state.chat.started) track('chat', state.jobId);
+  if (!state.chat.started) track('chat_start', { cat: state.category, job: state.jobId });
+  track('chat_message', { cat: state.category });
   state.chat.busy = true;
   state.chat.started = true;
   chatChips.hidden = true;
@@ -783,6 +809,7 @@ function sendMessage(text) {
       state.chat.messages.push({ role: 'assistant', content: data.reply });
       var updateText = null;
       if (data.estimate) {
+        track('chat_refined', { cat: state.category, job: state.jobId });
         var job = currentJob();
         if (data.estimate.qty && job && job.unit) state.qty = clampQty(job, data.estimate.qty);
         state.refined = { low: data.estimate.low, high: data.estimate.high, basis: data.estimate.basis };
@@ -810,6 +837,7 @@ function sendMessage(text) {
 }
 
 function failSend(text, bubble, message, close) {
+  track('chat_error', { code: Object.keys(ERRORS).find(function (k) { return ERRORS[k] === message; }) || 'generic' });
   if (text) {
     state.chat.messages.pop();
     if (bubble) bubble.remove();
@@ -858,7 +886,7 @@ function renderBoard() {
       category.dispatchEvent(new Event('change'));
       description.value = '';
       markStep(2, false);
-      startEstimate(job.cat, '', job.id);
+      startEstimate(job.cat, '', job.id, 'board');
     });
     list.appendChild(el('li', null, [btn]));
   });

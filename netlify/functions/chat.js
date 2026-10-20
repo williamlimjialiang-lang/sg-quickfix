@@ -6,15 +6,17 @@
  * data, asks Claude for the next reply, and returns the reply plus any updated
  * price range.
  *
- * Environment variables (Netlify > Site configuration > Environment variables)
- *   ANTHROPIC_API_KEY   Your Anthropic API key. Optional if Netlify AI Gateway
- *                       is enabled, which injects its own key and base URL.
- *   ANTHROPIC_BASE_URL  Set automatically by AI Gateway. Leave unset otherwise.
- *   CHAT_MODEL          Defaults to claude-haiku-5-5.
+ * Netlify AI Gateway (recommended): with AI features enabled on your Netlify
+ * team, Netlify injects ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL automatically
+ * and bills usage to your Netlify credits. Nothing to configure.
+ *
+ * Optional environment variables
+ *   ANTHROPIC_API_KEY   Your own key from the Anthropic Console, instead of the gateway.
+ *   CHAT_MODEL          Defaults to claude-haiku-5-5. Change it if the gateway
+ *                       reports that this model isn't available.
  *   CHAT_EFFORT         low | medium | high. Defaults to low for fast replies.
- *                       Set to "none" to omit it for models without effort.
- *   ALLOWED_ORIGINS     Optional comma-separated extra origins allowed to call
- *                       this endpoint, e.g. https://www.yourdomain.sg
+ *                       Set to "off" to leave the parameter out.
+ *   ALLOWED_ORIGINS     Extra origins allowed to call this endpoint, comma-separated.
  */
 
 import {
@@ -29,9 +31,9 @@ export const config = {
 };
 
 const MODEL = process.env.CHAT_MODEL || 'claude-haiku-5-5';
-const EFFORT = process.env.CHAT_EFFORT || 'low';
-const BASE_URL = (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '');
+const EFFORT = String(process.env.CHAT_EFFORT || 'low').toLowerCase();
 const UPSTREAM_TIMEOUT_MS = 24000;
+const MAX_OUTPUT_TOKENS = 1500;
 
 const MAX_MESSAGES = 24;
 const MAX_USER_CHARS = 800;
@@ -164,19 +166,37 @@ function systemPrompt(v) {
   return lines.join('\n');
 }
 
-function buildMessages(v) {
-  return v.messages.map((m, i) => {
-    if (i === 0 && v.image) {
-      return {
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: v.image.media_type, data: v.image.data } },
-          { type: 'text', text: m.content }
-        ]
-      };
-    }
-    return { role: m.role, content: m.content };
-  });
+function buildRequest(v, system, apiKey) {
+  const base = (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '');
+  const payload = {
+    model: MODEL,
+    max_tokens: MAX_OUTPUT_TOKENS,
+    system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+    messages: v.messages.map((m, i) => {
+      if (i === 0 && v.image) {
+        return {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: v.image.media_type, data: v.image.data } },
+            { type: 'text', text: m.content }
+          ]
+        };
+      }
+      return { role: m.role, content: m.content };
+    })
+  };
+  if (EFFORT && EFFORT !== 'off' && EFFORT !== 'none') payload.output_config = { effort: EFFORT };
+  return {
+    url: base + '/v1/messages',
+    headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: payload
+  };
+}
+
+function replyText(data) {
+  return data && Array.isArray(data.content)
+    ? data.content.filter((b) => b && b.type === 'text').map((b) => b.text).join('\n').trim()
+    : '';
 }
 
 function parseReply(raw) {
@@ -211,7 +231,7 @@ export default async (req) => {
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.error('chat: ANTHROPIC_API_KEY is not set and AI Gateway is not enabled');
+    console.error('chat: no ANTHROPIC_API_KEY. Enable AI features for your Netlify team (AI Gateway) or add your own key, then redeploy.');
     return json({ error: 'not_configured' }, 503);
   }
 
@@ -222,50 +242,43 @@ export default async (req) => {
   if (v.error === 'limit') return json({ error: 'limit' }, 400);
   if (v.error) return json({ error: v.error }, 400);
 
-  const payload = {
-    model: MODEL,
-    max_tokens: 1500,
-    system: [{ type: 'text', text: systemPrompt(v), cache_control: { type: 'ephemeral' } }],
-    messages: buildMessages(v)
-  };
-  if (EFFORT && EFFORT !== 'none') payload.output_config = { effort: EFFORT };
-
+  const call = buildRequest(v, systemPrompt(v), apiKey);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
 
   let upstream;
   try {
-    upstream = await fetch(BASE_URL + '/v1/messages', {
+    upstream = await fetch(call.url, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify(payload),
+      headers: call.headers,
+      body: JSON.stringify(call.body),
       signal: controller.signal
     });
   } catch (err) {
     clearTimeout(timer);
     const timedOut = err && err.name === 'AbortError';
-    console.error('chat: upstream request failed', timedOut ? 'timeout' : err);
+    console.error('chat: request failed', timedOut ? 'timeout' : err);
     return json({ error: timedOut ? 'timeout' : 'upstream' }, timedOut ? 504 : 502);
   }
   clearTimeout(timer);
 
   if (!upstream.ok) {
     const detail = await upstream.text().catch(() => '');
+    if (/credit|billing|quota/i.test(detail)) {
+      console.error('chat: the account behind the API key is out of credit. Top up Netlify credits or your Anthropic balance.');
+    }
+    if (/model/i.test(detail) && upstream.status === 404) {
+      console.error('chat: model ' + MODEL + ' not available. Set CHAT_MODEL to a Claude model your gateway offers.');
+    }
     console.error('chat: upstream status', upstream.status, detail.slice(0, 500));
-    if (upstream.status === 429 || upstream.status === 529) return json({ error: 'busy' }, 503);
+    if (upstream.status === 429 || upstream.status === 529 || upstream.status === 503) return json({ error: 'busy' }, 503);
     return json({ error: 'upstream' }, 502);
   }
 
   const data = await upstream.json().catch(() => null);
-  const raw = data && Array.isArray(data.content)
-    ? data.content.filter((b) => b && b.type === 'text').map((b) => b.text).join('\n').trim()
-    : '';
+  const raw = replyText(data);
   if (!raw) {
-    console.error('chat: empty reply', data && data.stop_reason);
+    console.error('chat: empty reply', JSON.stringify(data).slice(0, 300));
     return json({ error: 'upstream' }, 502);
   }
 
