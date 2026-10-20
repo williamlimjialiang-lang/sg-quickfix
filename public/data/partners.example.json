@@ -1,0 +1,38 @@
+[
+  {
+    "id": "example-aircon",
+    "name": "Example Aircon Services",
+    "categories": ["Aircon"],
+    "jobs": ["ac-general", "ac-chemwash", "ac-overhaul", "ac-leak"],
+    "tagline": "Same-week servicing islandwide, 90-day warranty on overhauls",
+    "areas": ["Islandwide"],
+    "fromPrice": 35,
+    "priceUnit": "per unit",
+    "licence": "",
+    "rating": 4.8,
+    "reviews": 212,
+    "reviewSource": "Google",
+    "verified": "20 Oct 2026",
+    "whatsapp": "6591234567",
+    "phone": "+65 9123 4567",
+    "website": "https://example.com",
+    "logo": "/data/logos/example-aircon.png",
+    "sponsored": false,
+    "active": true
+  },
+  {
+    "id": "example-electrical",
+    "name": "Example Electrical Works",
+    "categories": ["Electrical"],
+    "jobs": ["elec-trip", "elec-socket", "elec-breaker"],
+    "tagline": "EMA-licensed, 24-hour power trip call-outs",
+    "areas": ["East", "North-East"],
+    "fromPrice": 60,
+    "priceUnit": "per visit",
+    "licence": "EMA licence E1234567",
+    "verified": "20 Oct 2026",
+    "whatsapp": "6598765432",
+    "sponsored": true,
+    "active": true
+  }
+]

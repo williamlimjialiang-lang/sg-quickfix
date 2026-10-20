@@ -1,0 +1,10 @@
+{
+  "name": "sg-quickfix",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Instant home repair estimates for Singapore, with an AI quote assistant and partner listings.",
+  "scripts": {
+    "dev": "netlify dev"
+  }
+}
