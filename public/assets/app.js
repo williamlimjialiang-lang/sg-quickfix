@@ -3,6 +3,7 @@ import {
   jobById, jobsFor, defaultJobFor, matchJob, guessQty, clampQty, unitNoun,
   estimate, formatRange, greetingFor
 } from './rates.js';
+import { track } from './track.js';
 
 /* ---------- Helpers ---------- */
 
@@ -173,6 +174,7 @@ form.addEventListener('submit', function (e) {
     category.focus();
     return;
   }
+  track('estimate', category.value);
   startEstimate(category.value, description.value.trim(), null);
 });
 
@@ -403,6 +405,17 @@ document.querySelectorAll('[data-action="edit"]').forEach(function (b) {
 });
 
 /* ---------- Booking ---------- */
+
+/* Count clicks on any booking link: a partner's id, or the site it opens. */
+['book-partners', 'book-links'].forEach(function (id) {
+  $(id).addEventListener('click', function (e) {
+    var link = e.target.closest('a[href]');
+    if (!link) return;
+    var row = link.closest('[data-partner]');
+    var where = row ? row.dataset.partner : link.hostname;
+    track('book', where + ':' + link.textContent.trim().slice(0, 40));
+  });
+});
 
 var PLATFORMS = {
   'Aircon': [
@@ -724,6 +737,7 @@ function sendMessage(text) {
     return;
   }
 
+  if (!state.chat.started) track('chat', state.jobId);
   state.chat.busy = true;
   state.chat.started = true;
   chatChips.hidden = true;
