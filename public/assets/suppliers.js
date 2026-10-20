@@ -201,6 +201,7 @@
     fetch('/', { method: 'POST', body: new FormData(form) })
       .then(function (res) {
         if (!res.ok) throw new Error('Status ' + res.status);
+        if (window.sgTrack) window.sgTrack('application');
         $('done-email').textContent = $('email').value.trim();
         form.hidden = true;
         $('apply-done').hidden = false;

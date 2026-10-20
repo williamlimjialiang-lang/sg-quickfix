@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en-SG">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site stats | SG QuickFix</title>
+<meta name="theme-color" content="#0C2E72">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+<script type="module" src="/assets/stats.js"></script>
+</head>
+<body>
+<div class="band">
+  <header class="wrap masthead">
+    <a class="wordmark" href="/" aria-label="SG QuickFix home">
+      <span class="wordmark-sg">SG</span>
+      <span>QuickFix</span>
+      <span class="wordmark-sub">Stats</span>
+    </a>
+  </header>
+  <section class="wrap hero">
+    <h1>Visitors and requests</h1>
+  </section>
+</div>
+<main id="main" class="wrap">
+  <div class="card stats-login" id="login">
+    <form id="login-form" novalidate>
+      <label class="field-label" for="password">Dashboard password</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+      <p class="field-error" id="login-error" role="alert" hidden></p>
+      <button type="submit" class="btn">Show stats</button>
+    </form>
+  </div>
+
+  <div class="card" id="dashboard" hidden>
+    <div class="stats-head">
+      <h2 id="range-title">Last 30 days</h2>
+      <div class="stats-range" role="group" aria-label="Date range">
+        <button type="button" data-days="7" aria-pressed="false">7 days</button>
+        <button type="button" data-days="30" aria-pressed="true">30 days</button>
+        <button type="button" data-days="90" aria-pressed="false">90 days</button>
+        <button type="button" data-days="365" aria-pressed="false">1 year</button>
+      </div>
+    </div>
+
+    <ul class="stat-tiles" id="tiles"></ul>
+
+    <h3>Each day</h3>
+    <div id="chart"></div>
+    <ul class="stats-legend">
+      <li class="visitors">Visitors</li>
+      <li>People who requested an estimate</li>
+    </ul>
+
+    <div class="stats-scroll">
+      <table class="stats-table">
+        <thead>
+          <tr><th scope="col">Day</th><th scope="col">Visitors</th><th scope="col">Page views</th><th scope="col">Estimates</th><th scope="col">Chats</th><th scope="col">Booking clicks</th><th scope="col">Applications</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <h3>Estimates by category</h3>
+    <div class="stats-scroll">
+      <table class="stats-table">
+        <thead><tr><th scope="col">Category</th><th scope="col">Estimates</th></tr></thead>
+        <tbody id="categories"></tbody>
+      </table>
+    </div>
+
+    <p class="fine">A visitor is one browser on one day, so someone who comes back on three days counts three times. Bots and browsers that send Do Not Track aren't counted. Days are in Singapore time.</p>
+  </div>
+</main>
+</body>
+</html>
